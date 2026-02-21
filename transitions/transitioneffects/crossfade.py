@@ -1,4 +1,8 @@
 import soundfile as sf
+import librosa
+import numpy as np
+import os
+from sections import get_sections
 
 def crossfade(wav1_path, wav2_path, output_path, fade_duration=8):
     y1, sr1 = librosa.load(wav1_path, sr=None, mono=False)
