@@ -12,6 +12,8 @@ Note: get_key and get_sections are expected to accept a filepath argument
 once their implementations are complete.
 """
 
+import os
+import sys
 import warnings
 from pathlib import Path
 from typing import List
@@ -21,8 +23,12 @@ import numpy as np
 import pandas as pd
 
 from bpm import get_bpm
-from key import get_key
 from sections import get_sections
+
+# get_key lives in the get_key/ sub-folder; add it to the path so its
+# internal imports (key_profiles, camelot) resolve correctly too.
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "get_key"))
+from get_key import get_key  # noqa: E402
 
 
 # ---------------------------------------------------------------------------
