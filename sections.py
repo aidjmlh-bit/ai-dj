@@ -2,7 +2,6 @@ import allin1
 import os
 import glob
 import librosa
-import numpy as np
 
 def find_beat_drop(result):
     segments = result.segments
@@ -42,13 +41,14 @@ def extract_key_moments(wav_path, result):
     chorus   = first_of('chorus')
     outro    = first_of('outro')
 
+    # Use `is not None` so that a timestamp of 0.0 (valid) is not treated as missing.
     return (
-        ("Intro",     format_time(intro)    if intro    else None),
-        ("Verse",     format_time(verse)    if verse    else None),
-        ("Buildup",   format_time(buildup_time) if buildup_time else None),
-        ("Beatdrop",  format_time(drop_time) if drop_time else None),
-        ("Chorus",    format_time(chorus)   if chorus   else None),
-        ("Outro",     format_time(outro)    if outro    else None),
+        ("Intro",    float(intro)        if intro    is not None else None),
+        ("Verse",    float(verse)        if verse    is not None else None),
+        ("Buildup",  float(buildup_time) if buildup_time is not None else None),
+        ("Beatdrop", float(drop_time)    if drop_time    is not None else None),
+        ("Chorus",   float(chorus)       if chorus   is not None else None),
+        ("Outro",    float(outro)        if outro    is not None else None),
     )
 
 def analyze_songs(folder_path):
@@ -77,12 +77,23 @@ def analyze_songs(folder_path):
     return all_results
 
 ##results = analyze_songs('/path/to/your/folder')
-
 ##for song, moments in results.items():
-    print(f"\n{song}:")
-    print(moments)
+##    print(f"\n{song}:")
+##    print(moments)
 
 
+def get_sections(filepath: str):
+    """Return key structural moments for a WAV file as float timestamps.
 
-#def get_sections() -> ((str, str), (str, str), (str, str), (str, str), (str, str)):
-#    return ("Intro", "timestamp"), ("Verse", "timestamp"), ("Chorus", "timestamp"), ("Beatdrop", "timestamp"), ("Outro", "timestamp")
+    Runs allin1 analysis on *filepath* and extracts the start time (in
+    seconds) for Intro, Verse, Buildup, Beatdrop, Chorus, and Outro.
+
+    Args:
+        filepath: Path to a ``.wav`` audio file.
+
+    Returns:
+        Tuple of ``(section_label, start_seconds)`` pairs. ``start_seconds``
+        is a float, or ``None`` if that section was not detected.
+    """
+    result = allin1.analyze(filepath)
+    return extract_key_moments(filepath, result)
