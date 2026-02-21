@@ -1,7 +1,6 @@
 """BPM estimation from WAV audio files."""
 
 import os
-
 import numpy as np
 import librosa
 
