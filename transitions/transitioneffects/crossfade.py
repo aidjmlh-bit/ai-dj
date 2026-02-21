@@ -1,18 +1,10 @@
-import soundfile as sf
-import librosa
 import numpy as np
-import os
-from sections import get_sections
+import librosa
+#import soundfile as sf
+from scipy.io.wavfile import write
 
-def crossfade(wav1_path, wav2_path, output_path, fade_out_start, fade_in_end):
-    """
-    Args:
-        wav1_path:      first song
-        wav2_path:      second song
-        output_path:    where to save
-        fade_out_start: timestamp (in seconds) where song 1 starts fading out
-        fade_in_end:    timestamp (in seconds) where song 2 finishes fading in (i.e. the beat drop)
-    """
+def crossfadesin(wav1_path, wav2_path, output_path, fade_out_start, fade_in_end, max_fade_seconds=8):
+    
     y1, sr1 = librosa.load(wav1_path, sr=None, mono=False)
     y2, sr2 = librosa.load(wav2_path, sr=None, mono=False)
 
@@ -20,27 +12,39 @@ def crossfade(wav1_path, wav2_path, output_path, fade_out_start, fade_in_end):
         y2 = librosa.resample(y2, orig_sr=sr2, target_sr=sr1)
     sr = sr1
 
-    fade_out_sample = int(fade_out_start * sr)
-    fade_in_sample  = int(fade_in_end * sr)
+    # Cut song 1 to only go max_fade_seconds past the fade out start
+    cut_sample = int((fade_out_start + max_fade_seconds) * sr)
+    y1 = y1[..., :cut_sample]
 
-    fade_out_len = len(y1[0]) - fade_out_sample
-    fade_in_len  = fade_in_sample
+    # Cut song 2 to start max_fade_seconds before the fade in end
+    start_sample = max(0, int((fade_in_end - max_fade_seconds) * sr))
+    y2 = y2[..., start_sample:]
 
-    fade_out_curve = np.linspace(1, 0, fade_out_len)
-    fade_in_curve  = np.linspace(0, 1, fade_in_len)
+    fade_samples = int(max_fade_seconds * sr)
+    
+    t = np.linspace(0, 1, fade_samples)
+    fade_out_curve = np.cos(t * np.pi / 2)
+    fade_in_curve  = np.sin(t * np.pi / 2)
 
-    y1[..., fade_out_sample:] *= fade_out_curve
-    y2[..., :fade_in_sample]  *= fade_in_curve
+    y1[..., -fade_samples:] *= fade_out_curve
+    y2[..., :fade_samples]  *= fade_in_curve
 
-    min_len = min(fade_out_len, fade_in_len)
-    overlap = y1[..., -min_len:] + y2[..., :min_len]
+    overlap = y1[..., -fade_samples:] + y2[..., :fade_samples]
 
     output = np.concatenate([
-        y1[..., :-min_len],
+        y1[..., :-fade_samples],
         overlap,
-        y2[..., min_len:]
+        y2[..., fade_samples:]
     ], axis=-1)
 
     output = output / np.max(np.abs(output))
-    sf.write(output_path, output.T, sr)
+    
+    from scipy.io.wavfile import write
+    write(output_path, sr, output.T.astype(np.float32))
     print(f"Saved crossfade to: {output_path}")
+    
+# example: 
+# crossfadesin('/Users/siddarvind/Downloads/thinkingaboutyou.wav', 
+#              '/Users/siddarvind/Downloads/fameisagun.wav', 
+#              'outputSin1.wav', 
+#              fade_out_start=116.0, fade_in_end=14.0)    
