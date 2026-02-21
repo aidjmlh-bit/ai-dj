@@ -1,0 +1,2 @@
+def get_sections() -> ((str, str), (str, str), (str, str), (str, str), (str, str)):
+    return ("Intro", "timestamp"), ("Verse", "timestamp"), ("Chorus", "timestamp"), ("Beatdrop", "timestamp"), ("Outro", "timestamp")
