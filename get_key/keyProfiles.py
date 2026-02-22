@@ -1,8 +1,5 @@
-# key_profiles.py
-# These are the Krumhansl-Schmuckler key profiles.
-# They are fixed 12-dimensional vectors representing how strongly
-# each of the 12 pitch classes (C, C#, D, D#, E, F, F#, G, G#, A, A#, B)
-# appears in major vs minor keys.
+# Krumhansl-Schmuckler key profiles.
+# 12 pitch classes (C, C#, D, D#, E, F, F#, G, G#, A, A#, B) appears in major vs minor keys.
 
 MAJOR_PROFILE = [
     6.35,  # C

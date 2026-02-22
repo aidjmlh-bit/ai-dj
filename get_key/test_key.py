@@ -34,7 +34,7 @@ print()
 
 # --- Test 3: detect_key.py on real song --- (add song)
 print("TEST 3: detect_key.py")
-#filepath = r"C:\Users\rheam\OneDrive\Documents\ai-dj\"
-#camelot_number, key_name = get_key(filepath)
-#print(f"  Key: {key_name}")
-#print(f"  Camelot Number: {camelot_number}")
+filepath = r"C:\Users\rheam\OneDrive\Documents\ai-dj\.wav"
+camelot_number, key_name = get_key(filepath)
+print(f"  Key: {key_name}")
+print(f"  Camelot Number: {camelot_number}")
