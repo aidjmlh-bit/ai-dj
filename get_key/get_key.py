@@ -1,127 +1,67 @@
-# detect_key.py
-# The brain of the key folder.
-# Loads a .wav file, extracts chroma features, compares to key profiles,
-# and returns the detected key + Camelot code.
-
 import numpy as np
 import librosa
-from key_profiles import MAJOR_PROFILE, MINOR_PROFILE, PITCH_CLASSES
+from keyProfiles import MAJOR_PROFILE, MINOR_PROFILE, PITCH_CLASSES
 from camelot import get_camelot_code, parse_camelot
 
-
-def cosine_similarity(vec_a, vec_b):
-    """
-    Measures how similar two vectors are. Then returns a value between -1 and 1.
-    
-    Rule:
-    1.0 = identical direction (perfect match)
-    0.0 = no relationship
-    -1.0 = opposite
-    """
-    dot_product = np.dot(vec_a, vec_b)
-    magnitude = np.linalg.norm(vec_a) * np.linalg.norm(vec_b)
-    if magnitude == 0:
-        return 0
-    return dot_product / magnitude
-
-
-def rotate_profile(profile, steps):
-    """
-    Shifts a key profile by a number of semitones.
-    This lets us compare one profile against all 12 possible roots.
-    Example: rotating C major profile by 2 steps gives D major profile.
-    """
-    return profile[steps:] + profile[:steps]
-
-
 def detect_key(filepath):
-    """
-    Main function. Takes a path to a .wav file.
-    Returns a dictionary with the detected key information.
-
-    Steps:
-    1. Load audio
-    2. Extract chroma (12 pitch class energies)
-    3. Average chroma across the whole song
-    4. Compare against all 24 keys (12 major + 12 minor) using cosine similarity
-    5. Pick the best matching key
-    6. Convert to Camelot code
-    """
-
-    # Step 1: Load audio
+    # Load audio
     print(f"Loading: {filepath}")
-    y, sr = librosa.load(filepath, mono=True)
+    y, sr = librosa.load(filepath, mono=True, sr=None)
 
-    # Step 2: Extract chroma features
-    # chroma is a 12 x time matrix
-    # Each row = one pitch class (C, C#, D, etc.)
-    # Each column = one time frame
-    chroma = librosa.feature.chroma_stft(y=y, sr=sr)
+    # Extract chroma with higher resolution
+    chroma = librosa.feature.chroma_cqt(y=y, sr=sr, bins_per_octave=24)
 
-    # Step 3: Average across time to get one 12-value vector
-    avg_chroma = np.mean(chroma, axis=1)
+    # Sum across time (instead of mean)
+    chroma_vals = [np.sum(chroma[i]) for i in range(12)]
 
-    # Step 4: Compare against 24 possible keys (all)
-    best_key = None
-    best_score = -1
-    best_quality = None  # major or minor
+    # Build frequency dictionary
+    keyfreqs = {PITCH_CLASSES[i]: chroma_vals[i] for i in range(12)}
 
-    for i, pitch in enumerate(PITCH_CLASSES):
+    # Compute correlations against all 24 keys
+    maj_corrs = []
+    min_corrs = []
 
-        # Rotate the profiles to match this pitch class as root
-        major_profile = rotate_profile(MAJOR_PROFILE, i)
-        minor_profile = rotate_profile(MINOR_PROFILE, i)
+    for i in range(12):
+        key_test = [keyfreqs.get(PITCH_CLASSES[(i + m) % 12]) for m in range(12)]
+        maj_corrs.append(round(np.corrcoef(MAJOR_PROFILE, key_test)[1, 0], 3))
+        min_corrs.append(round(np.corrcoef(MINOR_PROFILE, key_test)[1, 0], 3))
 
-        # Compare chroma to major profile
-        major_score = cosine_similarity(avg_chroma, major_profile)
-        if major_score > best_score:
-            best_score = major_score
-            best_key = f"{pitch} major"
-            best_quality = "major"
+    # Build key dictionary
+    keys = [p + ' major' for p in PITCH_CLASSES] + \
+           [p + ' minor' for p in PITCH_CLASSES]
+    key_dict = {**{keys[i]: maj_corrs[i] for i in range(12)},
+                **{keys[i+12]: min_corrs[i] for i in range(12)}}
 
-        # Compare chroma to minor profile
-        minor_score = cosine_similarity(avg_chroma, minor_profile)
-        if minor_score > best_score:
-            best_score = minor_score
-            best_key = f"{pitch} minor"
-            best_quality = "minor"
+    # Find best key
+    best_key = max(key_dict, key=key_dict.get)
+    best_corr = max(key_dict.values())
 
-    # Step 5: Convert to Camelot code
+    # Find alternate key if close
+    alt_key = None
+    for key, corr in key_dict.items():
+        if corr > best_corr * 0.9 and corr != best_corr:
+            alt_key = key
+
+    # Convert to Camelot
     camelot_code = get_camelot_code(best_key)
     camelot_number, camelot_letter = parse_camelot(camelot_code)
 
-    # Step 6: Return result
     result = {
         "key_name": best_key,
-        "quality": best_quality,      # major or minor
-        "camelot_code": camelot_code, # e.g. "8A"
-        "camelot_number": camelot_number,  # e.g. 8
-        "camelot_letter": camelot_letter,  # e.g. "A"
-        "confidence": round(best_score, 4)
+        "camelot_code": camelot_code,
+        "camelot_number": camelot_number,
+        "camelot_letter": camelot_letter,
+        "confidence": best_corr,
+        "alternate_key": alt_key
     }
 
-    print(f"Detected key: {best_key} ({camelot_code}) — confidence: {best_score:.4f}")
+    print(f"Detected key: {best_key} ({camelot_code}) — confidence: {best_corr}")
+    if alt_key:
+        print(f"Also possible: {alt_key}")
+
     return result
 
 
-# Example usage
-if __name__ == "__main__":
-    import sys
-    if len(sys.argv) < 2:
-        print("Usage: python detect_key.py path/to/song.wav")
-    else:
-        result = detect_key(sys.argv[1])
-        print(result)
-
 def get_key(filepath: str):
-    """Return the Camelot number and key name for a WAV file.
-
-    Args:
-        filepath: Path to a ``.wav`` audio file.
-
-    Returns:
-        ``(camelot_number, key_name)`` — e.g. ``(8, "A minor")``.
-    """
     result = detect_key(filepath)
     return result["camelot_number"], result["key_name"]
-
